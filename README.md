@@ -26,64 +26,82 @@ Käyttöliittymän ja rajapintojen taustalla on toteutettu useita edistyneitä o
 
 ## API-Päätepisteiden kuvaus (Endpoints)
 
-Tässä on kuvaus keskeisistä rajapinnoista, niiden käyttötarkoituksesta sekä dataformaateista.
+Tässä on kattava luettelo järjestelmän kaikista rajapinnoista, jaoteltuna resurssien mukaan. Jokainen rajapinta palauttaa ja vastaanottaa dataa JSON-muodossa.
 
-### Asiakkaat (Customers)
+### 1. Asiakkaat ja Osoitteet (Customers & Addresses)
 
-**1. Luo uusi asiakas**
-* **Käyttötarkoitus:** Rekisteröi uuden asiakkaan tietokantaan.
-* **Kutsu:** `POST /api/customers`
-* **Request Format (JSON):** `{ "firstName": "Matti", "lastName": "Meikäläinen", "email": "matti@esimerkki.fi" }`
-* **Vastauksen muoto:** Palauttaa luodun asiakkaan JSON-objektina (sisältäen tietokannan generoiman ID:n).
+**Asiakkaiden perushallinta (`/api/customers`)**
+* `GET /api/customers` - Palauttaa listan kaikista asiakkaista.
+* `POST /api/customers` - Luo uuden asiakkaan.
+  * *Request Format:* `{ "firstName": "Matti", "lastName": "Meikäläinen", "email": "matti@esimerkki.fi" }`
+* `GET /api/customers/{id}` - Palauttaa yksittäisen asiakkaan tiedot ID:n perusteella.
+* `PUT /api/customers/{id}` - Päivittää asiakkaan tiedot. *Request Format:* Sama kuin POST-metodissa.
+* `DELETE /api/customers/{id}` - Poistaa asiakkaan tietokannasta.
 
-**2. Lisää osoite asiakkaalle**
-* **Käyttötarkoitus:** Liittää uuden toimitusosoitteen olemassa olevaan asiakasprofiiliin (1-to-Many relaatio).
-* **Kutsu:** `POST /api/customers/{id}/addresses`
-* **Request Format:** `{ "streetAddress": "Katu 1", "city": "Helsinki", "postalCode": "00100", "country": "Suomi" }`
-* **Vastauksen muoto:** `201 Created` ja luotu osoiteobjekti.
+**Asiakkaan osoitteiden hallinta**
+* `GET /api/customers/{id}/addresses` - Palauttaa tietyn asiakkaan kaikki liitetyt osoitteet.
+* `POST /api/customers/{id}/addresses` - Liittää uuden toimitusosoitteen asiakkaalle.
+  * *Request Format:* `{ "streetAddress": "Katu 1", "city": "Helsinki", "postalCode": "00100", "country": "Suomi" }`
 
-**3. Hae asiakkaan tilaushistoria**
-* **Käyttötarkoitus:** Palauttaa listan kaikista tilauksista, jotka on kytketty tiettyyn asiakkaaseen.
-* **Kutsu:** `GET /api/customers/{id}/orders`
-* **Request:** Ei bodya.
-* **Vastauksen muoto:** JSON-taulukko (Array) `OrderDTO`-objekteja.
+**Erillinen osoitehallinta (`/api/customer-addresses`)**
+* `GET /api/customer-addresses` - Palauttaa kaikki järjestelmän osoitteet.
+* `POST /api/customer-addresses` - Luo uuden irrallisen osoitteen.
+* `GET /api/customer-addresses/{id}` - Palauttaa yksittäisen osoitteen tiedot.
+* `PUT /api/customer-addresses/{id}` - Päivittää osoitteen tiedot.
+* `DELETE /api/customer-addresses/{id}` - Poistaa osoitteen.
 
-### Tuotteet ja Katalogi (Products)
+### 2. Tuotteet ja Kategoriat (Products & Categories)
 
-**4. Hae asiakaskatalogi**
-* **Käyttötarkoitus:** Palauttaa ostettavissa olevat tuotteet (varastosaldo > 0).
-* **Kutsu:** `GET /api/products/catalog`
-* **Vastauksen muoto:** JSON-taulukko tuoteobjekteja.
+**Kategorioiden hallinta (`/api/categories`)**
+* `GET /api/categories` - Hakee kaikki tuotekategoriat.
+* `POST /api/categories` - Luo uuden kategorian.
+  * *Request Format:* `{ "name": "Elektroniikka" }`
+* `GET /api/categories/{id}` - Hakee tietyn kategorian tiedot.
+* `PUT /api/categories/{id}` - Päivittää kategorian nimen.
+* `DELETE /api/categories/{id}` - Poistaa kategorian.
+* `GET /api/categories/{id}/products` - Palauttaa kaikki tiettyyn kategoriaan kuuluvat tuotteet.
 
-**5. Lisää uusi tuote**
-* **Käyttötarkoitus:** Ylläpitäjän työkalu tuotteiden lisäämiseen. Yhdistää tuotteen kategoriaan ja toimittajaan (Foreign Keys).
-* **Kutsu:** `POST /api/products`
-* **Request Format:** `{ "name": "Läppäri", "price": 1000.0, "stockQuantity": 10, "category": {"id": 1}, "supplier": {"id": 1} }`
-* **Vastauksen muoto:** `201 Created` tallennettu tuote.
+**Tuotteiden hallinta (`/api/products`)**
+* `GET /api/products` - Palauttaa listan kaikista tuotteista.
+* `POST /api/products` - Lisää uuden tuotteen tietokantaan.
+  * *Request Format:* `{ "name": "Läppäri", "price": 1000.0, "stockQuantity": 10, "category": {"id": 1}, "supplier": {"id": 1} }`
+* `GET /api/products/catalog` - Palauttaa ostettavissa olevat tuotteet (varastosaldo > 0). Tämä on asiakasnäkymään tarkoitettu suodatettu haku.
+* `GET /api/products/search` - Etsii tuotteita dynaamisesti hakuparametrien perusteella.
+* `PUT /api/products/{id}` - Päivittää tuotteen tiedot.
+* `DELETE /api/products/{id}` - Poistaa tuotteen.
+* `PUT /api/products/category/{categoryId}/raise-prices` - Massa-päivittää tietyn kategorian kaikkien tuotteiden hintoja (esim. prosentin mukainen korotus).
 
-### Tilaukset (Orders) - Liiketoimintalogiikka
+### 3. Toimittajat (Suppliers)
 
-**6. Luo tilaus (Osto)**
-* **Käyttötarkoitus:** Järjestelmän monimutkaisin päätepiste. Sitoo asiakkaan tuotteisiin, lukitsee ostohetken hinnan ja vähentää varastosaldoa transaktion sisällä.
-* **Kutsu:** `POST /api/orders`
-* **Request Format:**
-  ```json
-  {
-    "customerId": 1,
-    "status": "PENDING",
-    "items": [
-      { "product": { "id": 1 }, "quantity": 2 }
-    ]
-  }
-  ```
-* **Vastauksen muoto:** `201 Created` ja luotu tilausobjekti. Jos saldo ei riitä, palauttaa `400 Bad Request` virheilmoituksella.
-* * **Vastauksen muoto:** JSON-objekti tilauksesta (OrderDTO).
+**Toimittajien hallinta (`/api/suppliers`)**
+* `GET /api/suppliers` - Listaa kaikki järjestelmän toimittajat.
+* `POST /api/suppliers` - Luo uuden toimittajan.
+  * *Request Format:* `{ "name": "Tech Corp", "email": "contact@techcorp.com", "phone": "0501234567" }`
+* `GET /api/suppliers/{id}` - Hakee yksittäisen toimittajan tiedot.
+* `PUT /api/suppliers/{id}` - Päivittää toimittajan tiedot.
+* `DELETE /api/suppliers/{id}` - Poistaa toimittajan.
 
-**7. Hae tulostettava kuitti**
-* **Käyttötarkoitus:** Palauttaa asiakkaalle muotoillun koosteen tilauksesta.
-* **Kutsu:** `GET /api/orders/{id}/receipt`
-* **Vastauksen muoto:** Map-rakenne, joka sisältää kuittinumeron, päivämäärän, tilarivikoosteen ja loppusumman.
+### 4. Tilaukset (Orders) - Järjestelmän ydin
 
+**Tilausten hallinta (`/api/orders`)**
+* `GET /api/orders` - Palauttaa listan kaikista tilauksista.
+* `POST /api/orders` - Luo uuden tilauksen. Tämä on järjestelmän monimutkaisin päätepiste: se lukitsee ostohetken hinnan ja vähentää varastosaldoa transaktion sisällä.
+  * *Request Format:*
+    ```json
+    {
+      "customerId": 1,
+      "status": "PENDING",
+      "items": [
+        { "product": { "id": 1 }, "quantity": 2 }
+      ]
+    }
+    ```
+  * *Vastauksen muoto:* JSON-objekti tilauksesta (OrderDTO).
+* `GET /api/orders/{id}` - Palauttaa tietyn tilauksen tarkan rakenteen ja tilarivit.
+* `PATCH /api/orders/{id}/status` - Päivittää tilauksen tilan (esim. PENDING -> SHIPPED).
+* `GET /api/orders/{id}/total` - Laskee ja palauttaa tilauksen tarkan kokonaissumman ostohetken hintojen perusteella.
+* `GET /api/orders/{id}/receipt` - Palauttaa asiakkaalle muotoillun koosteen tilauksesta.
+  * *Vastauksen muoto:* Map-rakenne, joka sisältää kuittinumeron, päivämäärän, tilarivikoosteen ja loppusumman.
 ---
 
 ## Tietokannan edistyneet ominaisuudet ja alustusskriptit
